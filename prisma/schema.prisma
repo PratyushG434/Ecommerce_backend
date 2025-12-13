@@ -1,0 +1,188 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  CUSTOMER
+}
+
+enum PaymentMethod {
+  COD
+  ONLINE
+}
+
+model User {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  password  String
+  name      String?
+  
+  // 1. New Field for Admin Customer Notes
+  notes     String?   
+  
+  role      Role      @default(CUSTOMER)
+  createdAt DateTime  @default(now())
+  
+  // Relations
+  cart         Cart?
+  wishlist     Wishlist?
+  orders       Order[]
+  
+  // 2. New Relation for Activity Logs
+  activityLogs ActivityLog[] 
+}
+
+model Product {
+  id            String   @id @default(uuid())
+  name          String
+  description   String?
+  price         Decimal  @db.Decimal(10, 2)
+  originalPrice Decimal? @db.Decimal(10, 2) // For discounts
+  stock         Int      @default(0)
+  
+  // Categorization
+  category      String
+  gender        String   // Men, Women, Unisex
+  tags          String[] // ["New", "Bestseller"]
+  
+  // Variations
+  sizes         String[] // ["S", "M", "L"]
+  colors        String[] // ["Black", "White"]
+  images        String[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  CartItem      CartItem[]
+  WishlistItem  WishlistItem[]
+  OrderItem     OrderItem[]
+}
+
+// --- NEW CART SYSTEM ---
+model Cart {
+  id        String     @id @default(uuid())
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id])
+  items     CartItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model CartItem {
+  id        String   @id @default(uuid())
+  cartId    String
+  cart      Cart     @relation(fields: [cartId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  quantity  Int
+  size      String?
+  color     String?
+}
+
+// --- NEW WISHLIST SYSTEM ---
+model Wishlist {
+  id        String         @id @default(uuid())
+  userId    String         @unique
+  user      User           @relation(fields: [userId], references: [id])
+  items     WishlistItem[]
+}
+
+model WishlistItem {
+  id        String   @id @default(uuid())
+  wishlistId String
+  wishlist   Wishlist @relation(fields: [wishlistId], references: [id])
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@unique([wishlistId, productId]) // Prevent duplicates
+}
+
+// --- UPDATED ORDERS ---
+
+
+
+// 2. Update the Order model
+model Order {
+  id            String        @id @default(uuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id])
+  
+  total         Decimal
+  status        String        @default("PENDING") // e.g. PENDING, PAID, SHIPPED
+  
+  // --- NEW FIELDS ---
+  paymentMethod PaymentMethod @default(COD) 
+  paymentId     String?       // Stores "pi_12345..." for Online, null for COD
+  // ------------------
+  items         OrderItem[]
+  refunds       Refund[]
+ 
+  createdAt     DateTime      @default(now())
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  price     Decimal
+  size      String?
+  color     String?
+  refundItems RefundItem[]
+}
+
+
+model Refund {
+  id              String       @id @default(uuid())
+  orderId         String
+  order           Order        @relation(fields: [orderId], references: [id])
+  
+  amount          Decimal      @db.Decimal(10, 2) // Amount refunded (could be partial)
+  reason          String?      // e.g., "Wrong Size", "Defective"
+  status          String       @default("PENDING") // PENDING, COMPLETED, REJECTED
+  gatewayRefundId String?      // The ID from Stripe/Razorpay (e.g., re_3Kj...)
+  
+  items           RefundItem[] // Which items are included in this refund?
+  
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+model RefundItem {
+  id          String    @id @default(uuid())
+  refundId    String
+  refund      Refund    @relation(fields: [refundId], references: [id])
+  
+  orderItemId String
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id])
+  
+  quantity    Int       // How many of this item are being returned?
+}
+
+model Settings {
+  id          String   @id @default(uuid())
+  siteName    String   @default("Rawwr Store")
+  supportEmail String  @default("support@rawwr.com")
+  taxRate     Decimal  @default(0.18)
+  currency    String   @default("USD")
+  updatedAt   DateTime @updatedAt
+}
+
+model ActivityLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  action    String   // e.g., "UPDATED_PRODUCT", "REFUNDED_ORDER"
+  details   String?  // JSON string or description
+  createdAt DateTime @default(now())
+}
