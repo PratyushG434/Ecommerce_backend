@@ -10,6 +10,9 @@ import productRoutes from './routes/productRoutes';
 import dashboardRoutes from './routes/dashboardRoutes';
 import userRoutes from './routes/userRoutes';
 import adminRoutes from './routes/adminRoutes';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 // We can add orderRoutes later
 
 dotenv.config();
@@ -40,8 +43,19 @@ app.use('/api/user', userRoutes);
 app.use('/api/admin', adminRoutes);
 
 // Health Check
+async function checkDbConnection() {
+  try {
+    await prisma.$connect(); // Try to connect
+    console.log("✅ Database connected successfully");
+  } catch (error) {
+    console.error("❌ Database connection failed:", error);
+  }
+}
 app.get('/', (req, res) => { res.send('API Running'); });
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
+checkDbConnection();
+

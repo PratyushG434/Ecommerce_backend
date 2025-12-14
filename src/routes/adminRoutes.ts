@@ -1,14 +1,16 @@
 import express from 'express';
 import { protect, adminOnly } from '../middleware/authMiddleware';
+import multer from 'multer';
 import {
   getDashboardStats, getMetrics,
   createProduct, updateProduct, deleteProduct,
   getOrders, updateOrderStatus, refundOrder,
   getCustomers, updateCustomerNotes,
-  exportOrdersCsv, getActivityLogs , getCurrentAdmin
+  exportOrdersCsv, getActivityLogs , getCurrentAdmin, uploadImage
 } from '../controllers/adminController';
 
 const router = express.Router();
+const upload = multer({ dest: 'uploads/' });
 
 // 🔒 GLOBAL LOCK: All routes below this line require Login + Admin Role
 router.use(protect);
@@ -23,6 +25,7 @@ router.get('/metrics', getMetrics);
 router.post('/products', createProduct);
 router.put('/products/:id', updateProduct);
 router.delete('/products/:id', deleteProduct);
+router.post('/products/upload', upload.single('file'), uploadImage);
 // router.post('/products/:id/images') -> Use existing upload logic
 
 // --- ORDERS ---

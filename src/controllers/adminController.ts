@@ -1,12 +1,56 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { Parser } from 'json2csv'; // You might need: npm install json2csv
+import { Parser } from 'json2csv';
+import { v2 as cloudinary } from 'cloudinary';
+import fs from 'fs';
 
+// --- CONFIGURATION ---
 const prisma = new PrismaClient();
+
+// Configure Cloudinary (Make sure these are in your .env file)
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 // Helper: Log Activity
 const logActivity = async (userId: string, action: string, details: string) => {
   await prisma.activityLog.create({ data: { userId, action, details } });
+};
+
+// --- IMAGE UPLOAD ---
+
+export const uploadImage = async (req: Request, res: Response) => {
+  try {
+    // 1. Check if file exists (Multer middleware should handle parsing)
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    // 2. Upload to Cloudinary
+    const result = await cloudinary.uploader.upload(req.file.path, {
+      folder: 'ecommerce_products', // Optional: Organize in a folder
+      use_filename: true,
+      unique_filename: false,
+    });
+
+    // 3. Remove file from local server (cleanup)
+    // Note: Only needed if using DiskStorage with Multer. If using MemoryStorage, skip this.
+    if (fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+
+    // 4. Return the Cloudinary URL
+    res.json({
+      success: true,
+      url: result.secure_url
+    });
+
+  } catch (error) {
+    console.error("UPLOAD ERROR:", error);
+    res.status(500).json({ message: 'Image upload failed', error: String(error) });
+  }
 };
 
 // --- DASHBOARD & METRICS ---
@@ -19,12 +63,12 @@ export const getDashboardStats = async (req: Request, res: Response) => {
     });
 
     const totalOrders = await prisma.order.count();
-    
-    const lowStock = await prisma.product.findMany({ 
-      where: { stock: { lte: 5 } }, 
-      take: 5 
+
+    const lowStock = await prisma.product.findMany({
+      where: { stock: { lte: 5 } },
+      take: 5
     });
-    
+
     const recentOrders = await prisma.order.findMany({
       take: 5,
       orderBy: { createdAt: 'desc' },
@@ -44,56 +88,105 @@ export const getDashboardStats = async (req: Request, res: Response) => {
 };
 
 export const getMetrics = async (req: Request, res: Response) => {
-  const { range } = req.query; // e.g., "30d"
-  
-  // Simple example: Get daily sales for last 30 days
+  const { range } = req.query; 
+
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
   const sales = await prisma.order.findMany({
-    where: { 
+    where: {
       createdAt: { gte: thirtyDaysAgo },
       status: 'PAID'
     },
     select: { createdAt: true, total: true }
   });
 
-  // In a real app, you would group these by day here using JS or SQL
   res.json({ range, data: sales });
 };
 
 // --- PRODUCTS (Admin Management) ---
 
 export const createProduct = async (req: Request, res: Response) => {
+  const { 
+    name, description, price, stock, category, gender, 
+    sizes, colors, tags, images, originalPrice 
+  } = req.body;
+
   try {
-    const product = await prisma.product.create({ data: req.body });
-    await logActivity(req.user!.id, 'CREATE_PRODUCT', `Created ${product.name}`);
-    res.status(201).json(product);
+    const product = await prisma.product.create({
+      data: {
+        name,
+        description,
+        price: typeof price === 'string' ? parseFloat(price) : price,
+        originalPrice: originalPrice ? parseFloat(originalPrice) : null,
+        stock: typeof stock === 'string' ? parseInt(stock) : stock,
+        category,
+        gender: gender || null,
+        sizes: sizes || [],
+        colors: colors || [],
+        tags: tags || [],
+        images: images || [],
+      }
+    });
+
+    if (req.user?.id) {
+      await logActivity(req.user.id, 'CREATE_PRODUCT', `Created ${product.name}`);
+    }
+
+    res.status(201).json({ success: true, data: product });
+
   } catch (error) {
-    res.status(500).json({ message: 'Error creating product' });
+    console.error("CREATE PRODUCT ERROR:", error);
+    res.status(500).json({ success: false, message: 'Error creating product', error: String(error) });
   }
 };
 
 export const updateProduct = async (req: Request, res: Response) => {
   const { id } = req.params;
+
+  // Destructure ALL fields to allow full updates
+  const { 
+    name, description, price, stock, category, gender, 
+    sizes, colors, tags, images, originalPrice 
+  } = req.body;
+
   try {
     const product = await prisma.product.update({
       where: { id },
-      data: req.body
+      data: {
+        name,
+        description,
+        price: typeof price === 'string' ? parseFloat(price) : price,
+        originalPrice: originalPrice ? parseFloat(originalPrice) : undefined, // use undefined to skip update if missing
+        stock: typeof stock === 'string' ? parseInt(stock) : stock,
+        category,
+        gender,
+        sizes,
+        colors,
+        tags,
+        images
+      }
     });
-    await logActivity(req.user!.id, 'UPDATE_PRODUCT', `Updated ${product.name}`);
-    res.json(product);
+
+    if (req.user?.id) {
+      await logActivity(req.user.id, 'UPDATE_PRODUCT', `Updated ${product.name}`);
+    }
+
+    res.json({ success: true, data: product });
+
   } catch (error) {
-    res.status(500).json({ message: 'Error updating product' });
+    console.error("UPDATE FAILED:", error);
+    res.status(500).json({ success: false, message: 'Error updating product' });
   }
 };
 
 export const deleteProduct = async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
-    // Note: In real world, "Soft Delete" (isActive=false) is better than Delete
     await prisma.product.delete({ where: { id } });
-    await logActivity(req.user!.id, 'DELETE_PRODUCT', `Deleted product ${id}`);
+    if (req.user?.id) {
+        await logActivity(req.user.id, 'DELETE_PRODUCT', `Deleted product ${id}`);
+    }
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting product' });
@@ -130,10 +223,10 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
       where: { id },
       data: { status }
     });
-    
-    // TODO: Send Fulfillment Email Trigger Here
-    
-    await logActivity(req.user!.id, 'UPDATE_ORDER', `Order ${id} set to ${status}`);
+
+    if (req.user?.id) {
+        await logActivity(req.user.id, 'UPDATE_ORDER', `Order ${id} set to ${status}`);
+    }
     res.json(order);
   } catch (error) {
     res.status(500).json({ message: 'Error updating status' });
@@ -141,16 +234,10 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
 };
 
 export const refundOrder = async (req: Request, res: Response) => {
-  const { id } = req.params; // Order ID
-  const { items, reason } = req.body; 
-  // Expect body like: 
-  // { 
-  //   items: [{ orderItemId: "item_123", quantity: 1 }], 
-  //   reason: "Customer disliked material" 
-  // }
+  const { id } = req.params; 
+  const { items, reason } = req.body;
 
   try {
-    // 1. Fetch the Order with its items
     const order = await prisma.order.findUnique({
       where: { id },
       include: { items: true }
@@ -158,28 +245,21 @@ export const refundOrder = async (req: Request, res: Response) => {
 
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    // 2. Calculate Refund Amount
     let refundAmount = 0;
-    
-    // We need to validate that they aren't refunding more than they bought
+
     for (const refundItem of items) {
       const dbItem = order.items.find(i => i.id === refundItem.orderItemId);
       if (!dbItem) {
-        return res.status(400).json({ message: `Item ${refundItem.orderItemId} not found in order` });
+        return res.status(400).json({ message: `Item ${refundItem.orderItemId} not found` });
       }
       if (refundItem.quantity > dbItem.quantity) {
         return res.status(400).json({ message: 'Cannot refund more items than purchased' });
       }
-      
-      // Add price * quantity to total refund
       refundAmount += Number(dbItem.price) * refundItem.quantity;
     }
 
-    // 3. Process with Payment Gateway (Fake Stripe Call)
-    // In real life: const stripeRefund = await stripe.refunds.create({ amount: refundAmount ... });
     const fakeGatewayId = "re_" + Math.random().toString(36).substr(2, 9);
 
-    // 4. Save to Database (Transaction to ensure safety)
     const refund = await prisma.refund.create({
       data: {
         orderId: id,
@@ -195,9 +275,6 @@ export const refundOrder = async (req: Request, res: Response) => {
         }
       }
     });
-
-    // 5. Optional: Update Order Status if EVERYTHING was refunded
-    // (Logic: Check if total refunded items == total ordered items)
 
     res.json({ success: true, refund });
 
@@ -220,7 +297,7 @@ export const getCustomers = async (req: Request, res: Response) => {
 export const updateCustomerNotes = async (req: Request, res: Response) => {
   const { id } = req.params;
   const { notes } = req.body;
-  
+
   await prisma.user.update({ where: { id }, data: { notes } });
   res.json({ success: true });
 };
@@ -229,8 +306,7 @@ export const updateCustomerNotes = async (req: Request, res: Response) => {
 
 export const exportOrdersCsv = async (req: Request, res: Response) => {
   const orders = await prisma.order.findMany({ include: { user: true } });
-  
-  // Transform data for CSV
+
   const fields = ['id', 'user.email', 'total', 'status', 'createdAt'];
   const json2csvParser = new Parser({ fields });
   const csv = json2csvParser.parse(orders);
@@ -249,12 +325,11 @@ export const getActivityLogs = async (req: Request, res: Response) => {
   res.json(logs);
 };
 
-
 export const getCurrentAdmin = async (req: Request, res: Response) => {
   const userId = req.user?.id;
   if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
-  const user = await prisma.user.findUnique({ 
+  const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { id: true, email: true, name: true, role: true }
   });
