@@ -6,7 +6,7 @@ import {
   createProduct, updateProduct, deleteProduct,
   getOrders, updateOrderStatus, refundOrder,
   getCustomers, updateCustomerNotes,
-  exportOrdersCsv, getActivityLogs , getCurrentAdmin, uploadImage
+  exportOrdersCsv, getActivityLogs , getCurrentAdmin, uploadImage , getOrderById
 } from '../controllers/adminController';
 
 const router = express.Router();
@@ -30,6 +30,7 @@ router.post('/products/upload', upload.single('file'), uploadImage);
 
 // --- ORDERS ---
 router.get('/orders', getOrders);
+router.get('/orders/:id', getOrderById);
 router.put('/orders/:id/status', updateOrderStatus);
 router.post('/orders/:id/refund', refundOrder);
 

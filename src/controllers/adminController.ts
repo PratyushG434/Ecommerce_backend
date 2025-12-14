@@ -88,7 +88,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
 };
 
 export const getMetrics = async (req: Request, res: Response) => {
-  const { range } = req.query; 
+  const { range } = req.query;
 
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -107,9 +107,9 @@ export const getMetrics = async (req: Request, res: Response) => {
 // --- PRODUCTS (Admin Management) ---
 
 export const createProduct = async (req: Request, res: Response) => {
-  const { 
-    name, description, price, stock, category, gender, 
-    sizes, colors, tags, images, originalPrice 
+  const {
+    name, description, price, stock, category, gender,
+    sizes, colors, tags, images, originalPrice
   } = req.body;
 
   try {
@@ -145,9 +145,9 @@ export const updateProduct = async (req: Request, res: Response) => {
   const { id } = req.params;
 
   // Destructure ALL fields to allow full updates
-  const { 
-    name, description, price, stock, category, gender, 
-    sizes, colors, tags, images, originalPrice 
+  const {
+    name, description, price, stock, category, gender,
+    sizes, colors, tags, images, originalPrice
   } = req.body;
 
   try {
@@ -185,7 +185,7 @@ export const deleteProduct = async (req: Request, res: Response) => {
   try {
     await prisma.product.delete({ where: { id } });
     if (req.user?.id) {
-        await logActivity(req.user.id, 'DELETE_PRODUCT', `Deleted product ${id}`);
+      await logActivity(req.user.id, 'DELETE_PRODUCT', `Deleted product ${id}`);
     }
     res.json({ success: true });
   } catch (error) {
@@ -214,6 +214,61 @@ export const getOrders = async (req: Request, res: Response) => {
   res.json(orders);
 };
 
+// src/controllers/adminController.ts
+
+
+// src/controllers/adminController.ts
+
+export const getOrderById = async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: {
+        user: {
+          select: { name: true, email: true, id: true }
+        },
+        items: {
+          include: {
+            product: {
+              select: {
+                name: true,
+                // FIX: Use 'images' (plural) because 'image' does not exist in your schema
+                images: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    // Optional: Transform the data to make it easier for the frontend
+    // We can map over the items and add a 'image' property (taking the first one)
+    const formattedOrder = {
+      ...order,
+      items: order.items.map((item: any) => ({
+        ...item,
+        product: {
+          ...item.product,
+          // Add a convenience 'image' field for the frontend to use easily
+          image: item.product.images?.[0] || ""
+        }
+      }))
+    };
+
+    res.json(formattedOrder);
+
+  } catch (error) {
+    console.error("GET ORDER ERROR:", error);
+    res.status(500).json({ message: 'Error fetching order details' });
+  }
+};
+
 export const updateOrderStatus = async (req: Request, res: Response) => {
   const { id } = req.params;
   const { status } = req.body;
@@ -225,7 +280,7 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
     });
 
     if (req.user?.id) {
-        await logActivity(req.user.id, 'UPDATE_ORDER', `Order ${id} set to ${status}`);
+      await logActivity(req.user.id, 'UPDATE_ORDER', `Order ${id} set to ${status}`);
     }
     res.json(order);
   } catch (error) {
@@ -234,7 +289,7 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
 };
 
 export const refundOrder = async (req: Request, res: Response) => {
-  const { id } = req.params; 
+  const { id } = req.params;
   const { items, reason } = req.body;
 
   try {
