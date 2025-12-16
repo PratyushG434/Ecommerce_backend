@@ -16,6 +16,7 @@ export const protect = (req: Request, res: Response, next: NextFunction) => {
       token = req.headers.authorization.split(' ')[1];
       const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as DecodedToken;
       req.user = { id: decoded.id, role: decoded.role };
+ 
       next();
     } catch (error) {
       res.status(401).json({ message: 'Not authorized, token failed' });
