@@ -12,10 +12,13 @@ import userRoutes from './routes/userRoutes';
 import adminRoutes from './routes/adminRoutes';
 import { PrismaClient } from '@prisma/client';
 
+dotenv.config();
+console.log("RUNTIME DATABASE_URL =", process.env.DATABASE_URL);
+
 const prisma = new PrismaClient();
 // We can add orderRoutes later
 
-dotenv.config();
+
 
 const app = express();
 const PORT = process.env.PORT || 8000;
