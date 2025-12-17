@@ -11,10 +11,7 @@ import dashboardRoutes from './routes/dashboardRoutes';
 import userRoutes from './routes/userRoutes';
 import adminRoutes from './routes/adminRoutes';
 import { PrismaClient } from '@prisma/client';
-
-dotenv.config();
-console.log("RUNTIME DATABASE_URL =", process.env.DATABASE_URL);
-
+import { adminOnly, protect } from './middleware/authMiddleware';
 const prisma = new PrismaClient();
 // We can add orderRoutes later
 
@@ -43,7 +40,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/admin', dashboardRoutes);
 app.use('/api/user', userRoutes); 
-app.use('/api/admin', adminRoutes);
+app.use('/api/admin',adminOnly, adminRoutes);
 
 // Health Check
 async function checkDbConnection() {

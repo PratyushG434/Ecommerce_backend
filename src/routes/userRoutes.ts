@@ -2,7 +2,7 @@ import express from 'express';
 import { protect } from '../middleware/authMiddleware';
 import { 
   addToCart, getCart, removeFromCart, checkout,
-  addToWishlist, getWishlist, getCurrentUser 
+  addToWishlist, getWishlist, getCurrentUser , getOrderById,getOrders,updateProfile, getAddresses, deleteAddress, addAddress
 } from '../controllers/userController';
 
 
@@ -20,7 +20,19 @@ router.post('/wishlist', addToWishlist);
 router.get('/wishlist', getWishlist);
 router.post('/checkout', checkout);
 
+// Order Routes
+router.get('/orders',  getOrders);
+router.get('/orders/:id', getOrderById);
+
+// Profile Route (Using PUT since we are updating)
+router.put('/me', updateProfile);
 // Auth Me
 router.get('/me', getCurrentUser);
+
+
+// Add these lines to your router
+router.get('/addresses', getAddresses);
+router.post('/addresses', addAddress);
+router.delete('/addresses/:id', deleteAddress);
 
 export default router;

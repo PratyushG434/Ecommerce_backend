@@ -5,10 +5,11 @@ const prisma = new PrismaClient();
 
 // 1. Get All Products (With Filters & Search)
 export const getProducts = async (req: Request, res: Response) => {
-  const { 
-    category, gender, colors, sizes, 
-    priceMin, priceMax, sort, search, 
-    page = '1', limit = '12' 
+  const {
+    category, gender, colors, sizes,
+    minPrice, maxPrice, // FIX: Frontend sends 'minPrice', not 'priceMin'
+    sort, search, tags,
+    page = '1', limit = '12'
   } = req.query;
 
   const p = Number(page);
@@ -16,26 +17,47 @@ export const getProducts = async (req: Request, res: Response) => {
 
   // Build Filter Object
   const where: any = {};
-  
-  if (category) where.category = category;
-  if (gender) where.gender = gender;
+
+  // FIX: Support Multi-select categories (e.g., "Tops,Bottoms")
+
+  if (tags) {
+    where.tags = { hasSome: (tags as string).split(',') };
+  }
+
+  if (category) {
+    where.category = { in: (category as string).split(',') };
+  }
+
+  // FIX: Support Multi-select gender
+  if (gender) {
+    where.gender = { in: (gender as string).split(',') };
+  }
+
   if (search) where.name = { contains: search as string, mode: 'insensitive' };
-  
-  // Array Filters (Postgres specific)
-  if (colors) where.colors = { hasSome: (colors as string).split(',') };
+
+  // Sizes (Works if sizes is String[])
   if (sizes) where.sizes = { hasSome: (sizes as string).split(',') };
-  
-  // Price Range
-  if (priceMin || priceMax) {
+
+  if (colors) {
+    where.colorNames = { hasSome: (colors as string).split(',') };
+  }
+
+  // ⚠️ WARNING: If 'colors' is JSON, 'hasSome' WILL CRASH. 
+  // We are temporarily disabling strict database color filtering.
+  // if (colors) where.colors = { hasSome: (colors as string).split(',') };
+
+  // FIX: Match frontend parameter names (minPrice/maxPrice)
+  if (minPrice || maxPrice) {
     where.price = {};
-    if (priceMin) where.price.gte = parseFloat(priceMin as string);
-    if (priceMax) where.price.lte = parseFloat(priceMax as string);
+    if (minPrice) where.price.gte = parseFloat(minPrice as string);
+    if (maxPrice) where.price.lte = parseFloat(maxPrice as string);
   }
 
   // Sorting
-  let orderBy: any = { createdAt: 'desc' }; // Default: Newest
+  let orderBy: any = { createdAt: 'desc' };
   if (sort === 'price-low') orderBy = { price: 'asc' };
   if (sort === 'price-high') orderBy = { price: 'desc' };
+  // if (sort === 'popular') orderBy = { orders: { _count: 'desc' } }; // Optional: If you want popular
 
   try {
     const products = await prisma.product.findMany({
@@ -44,21 +66,22 @@ export const getProducts = async (req: Request, res: Response) => {
       skip: (p - 1) * l,
       take: l,
     });
-    
+
     const total = await prisma.product.count({ where });
 
-    // ✅ STANDARD RESPONSE: Everything wrapped in 'data'
     res.json({
       success: true,
       message: "Products fetched successfully",
+      // We return a structured object for pagination support
       data: {
         total,
         page: p,
         totalPages: Math.ceil(total / l),
-        products
+        products // <--- The actual array is here
       }
     });
   } catch (error) {
+    console.error(error); // Log error for debugging
     res.status(500).json({ success: false, message: 'Error fetching products' });
   }
 };
@@ -67,7 +90,7 @@ export const getProducts = async (req: Request, res: Response) => {
 export const getProductById = async (req: Request, res: Response) => {
   try {
     // DEBUG: Check what is actually coming in the URL
-    console.log("Params received:", req.params); 
+    console.log("Params received:", req.params);
 
     // FIX: Use 'req.params.id' if your route is '/products/:id'
     // fallback to 'req.params.productId' just in case
@@ -75,11 +98,11 @@ export const getProductById = async (req: Request, res: Response) => {
     const id = req.params.id;
 
     const product = await prisma.product.findUnique({
-      where: { id: id } 
+      where: { id: id }
     });
 
     if (!product) {
-        return res.status(404).json({ success: false, message: 'Product not found' });
+      return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
     res.json({

@@ -33,36 +33,60 @@ model User {
   cart         Cart?
   wishlist     Wishlist?
   orders       Order[]
-  
+  reviews       Review[]
+  addresses     Address[]
   // 2. New Relation for Activity Logs
   activityLogs ActivityLog[] 
 }
 
+
+
 model Product {
   id            String   @id @default(uuid())
   name          String
-  description   String?
-  price         Decimal  @db.Decimal(10, 2)
-  originalPrice Decimal? @db.Decimal(10, 2) // For discounts
-  stock         Int      @default(0)
-  
-  // Categorization
-  category      String
-  gender        String   // Men, Women, Unisex
-  tags          String[] // ["New", "Bestseller"]
-  
-  // Variations
-  sizes         String[] // ["S", "M", "L"]
-  colors        String[] // ["Black", "White"]
-  images        String[]
-  
+  description   String
+  price         Float
+  stock         Int
+  category      String   // e.g. "T-Shirts", "Hoodies"
+  images        String[] // Array of image URLs
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  // --- NEW FIELDS ---
+  originalPrice Float?   // For the "Save %" calculation
+  gender        String?  // e.g. "Men", "Women", "Unisex", "Kids"
+  tags          String[] @default([]) // e.g. ["New Arrival", "Summer Sale"]
+  
+  colors        Json?    @default("[]") 
+  colorNames    String[] @default([])
+  
+  // Sizes Array: ["S", "M", "L"]
+  sizes         String[] @default([])   
+  
+  // Details for Tabs
+  features      String[] @default([])
+  materials     String?
+  care          String?
+  
   // Relations
-  CartItem      CartItem[]
-  WishlistItem  WishlistItem[]
-  OrderItem     OrderItem[]
+  orders        OrderItem[]
+ reviews    Review[] 
+ cartItems     CartItem[]
+  wishlistItems WishlistItem[]
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  rating    Int      // 1-5
+  comment   String
+  createdAt DateTime @default(now())
+
+  // Relations
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 }
 
 // --- NEW CART SYSTEM ---
@@ -184,5 +208,20 @@ model ActivityLog {
   user      User     @relation(fields: [userId], references: [id])
   action    String   // e.g., "UPDATED_PRODUCT", "REFUNDED_ORDER"
   details   String?  // JSON string or description
+  createdAt DateTime @default(now())
+}
+
+model Address {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  name        String   // Recipient Name (e.g. "John Doe")
+  phone       String   // Contact for delivery (e.g. "+1234567890")
+  tag       String
+  street    String
+  city      String
+  state     String
+  zip       String
+  isDefault Boolean  @default(false)
   createdAt DateTime @default(now())
 }
