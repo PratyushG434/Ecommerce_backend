@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
+import { sendOrderConfirmationEmail } from '../utils/emailService';
 
 const prisma = new PrismaClient();
 
@@ -123,6 +124,11 @@ export const createOrder = async (req: Request, res: Response) => {
         });
       }
 
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (user) {
+        sendOrderConfirmationEmail(user.email, order.id, Number(order.total));
+      }
+
       return res.json({ success: true, orderId: order.id, mode: 'COD' });
     }
 
@@ -136,7 +142,7 @@ export const createOrder = async (req: Request, res: Response) => {
       });
 
       // 2. Create DB Order (Status: PENDING)
-      await prisma.order.create({
+      const order = await prisma.order.create({
         data: {
           userId,
           total: totalAmount,
@@ -190,7 +196,8 @@ export const verifyPayment = async (req: Request, res: Response) => {
 
     // C. Find Order in DB
     const order = await prisma.order.findUnique({
-      where: { razorpayOrderId: razorpay_order_id }
+      where: { razorpayOrderId: razorpay_order_id },
+      include: { user: true }
     });
 
     if (!order) {
@@ -204,6 +211,8 @@ export const verifyPayment = async (req: Request, res: Response) => {
         status: 'PAID',
         razorpayPaymentId: razorpay_payment_id
       }
+      
+
     });
 
     // E. Clear Cart Logic (Only if source was 'cart')
@@ -217,6 +226,10 @@ export const verifyPayment = async (req: Request, res: Response) => {
       console.log(`Cart cleared for user ${order.userId}`);
     } else {
       console.log(`Direct buy detected. Cart preserved for user ${order.userId}`);
+    }
+
+    if (order.user) {
+      await sendOrderConfirmationEmail(order.user.email, order.id, Number(order.total));
     }
 
     res.json({ valid: true, orderId: order.id });

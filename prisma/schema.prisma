@@ -28,6 +28,8 @@ model User {
   
   role      Role      @default(CUSTOMER)
   createdAt DateTime  @default(now())
+  isVerified        Boolean  @default(false)
+  verificationToken String?
   
   // Relations
   cart         Cart?
