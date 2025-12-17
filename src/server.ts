@@ -4,6 +4,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
+import paymentRoutes from './routes/paymentRoutes';
+
 
 import authRoutes from './routes/authRoutes';
 import productRoutes from './routes/productRoutes';
@@ -41,6 +43,8 @@ app.use('/api/products', productRoutes);
 app.use('/api/admin', dashboardRoutes);
 app.use('/api/user', userRoutes); 
 app.use('/api/admin',adminOnly, adminRoutes);
+app.use('/api/payment', paymentRoutes);
+
 
 // Health Check
 async function checkDbConnection() {
