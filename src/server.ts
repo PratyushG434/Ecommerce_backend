@@ -4,6 +4,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
+import paymentRoutes from './routes/paymentRoutes';
+
 
 import authRoutes from './routes/authRoutes';
 import productRoutes from './routes/productRoutes';
@@ -15,7 +17,7 @@ import { adminOnly, protect } from './middleware/authMiddleware';
 const prisma = new PrismaClient();
 // We can add orderRoutes later
 
-dotenv.config();
+
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -41,6 +43,9 @@ app.use('/api/products', productRoutes);
 app.use('/api/admin', dashboardRoutes);
 app.use('/api/user', userRoutes); 
 app.use('/api/admin',adminRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/payment', paymentRoutes);
+
 
 // Health Check
 async function checkDbConnection() {
