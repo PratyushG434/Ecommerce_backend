@@ -27,9 +27,18 @@ export const protect = (req: Request, res: Response, next: NextFunction) => {
 };
 
 export const adminOnly = (req: Request, res: Response, next: NextFunction) => {
+  console.log(req.user?.role)
   if (req.user && req.user.role === 'ADMIN') {
     next();
   } else {
     res.status(403).json({ message: 'Not authorized as admin' });
+  }
+};
+
+export const customerOnly = (req: Request, res: Response, next: NextFunction) => {
+  if (req.user && req.user.role === 'CUSTOMER') {
+    next();
+  } else {
+    res.status(403).json({ message: 'Not regsistered as a customer' });
   }
 };
