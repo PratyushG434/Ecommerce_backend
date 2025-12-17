@@ -1,5 +1,5 @@
 import express from 'express';
-import { protect } from '../middleware/authMiddleware';
+import { customerOnly, protect } from '../middleware/authMiddleware';
 import { 
   addToCart, getCart, removeFromCart, checkout,
   addToWishlist, getWishlist, getCurrentUser , getOrderById,getOrders,updateProfile, getAddresses, deleteAddress, addAddress
@@ -9,6 +9,7 @@ import {
 const router = express.Router();
 
 router.use(protect); // All routes below require login
+router.use(customerOnly);
 
 // Cart
 router.post('/cart', addToCart);

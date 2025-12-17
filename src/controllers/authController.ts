@@ -38,6 +38,71 @@ export const login = async (req: Request, res: Response) => {
   }
 };
 
+export const register = async (req: Request, res: Response) => {
+  const { email, password, name } = req.body;
+
+  if (!email || !password || !name) {
+    return res.status(400).json({ message: "Missing required fields" });
+  }
+
+  try {
+    // 1. Check if user exists
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: email },
+          { name: name || undefined }
+        ]
+      }
+    });
+
+    if (existingUser) {
+      return res.status(400).json({ message: "User already exists" });
+    }
+
+    // 2. Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // 3. Create user
+    const newUser = await prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        name: name || null,
+        role: "CUSTOMER"
+      }
+    });
+
+    // 4. Generate Tokens (MATCHING LOGIN LOGIC)
+    const accessToken = generateAccessToken(newUser.id, newUser.role);
+    const refreshToken = generateRefreshToken(newUser.id, newUser.role);
+
+    // 5. Set Cookie (MATCHING LOGIN LOGIC)
+    res.cookie('jwt', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    // 6. Return Response
+    const { password: _, ...userWithoutPassword } = newUser;
+
+    res.status(201).json({
+      message: "User created successfully",
+      data: {
+        accessToken,
+        user: userWithoutPassword
+      }
+
+    });
+
+  } catch (error) {
+    console.error("Register Error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export const refresh = (req: Request, res: Response) => {
   const cookies = req.cookies;
   if (!cookies?.jwt) return res.status(401).json({ message: 'Unauthorized' });
@@ -53,8 +118,8 @@ export const refresh = (req: Request, res: Response) => {
 
 export const getMe = async (req: Request, res: Response) => {
   try {
-    
-   console.log(req.user)
+
+    console.log(req.user)
     const userId = req.user?.id;
 
     if (!userId) {

@@ -42,6 +42,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/admin', dashboardRoutes);
 app.use('/api/user', userRoutes); 
+app.use('/api/admin',adminRoutes);
 app.use('/api/admin',adminOnly, adminRoutes);
 app.use('/api/payment', paymentRoutes);
 
