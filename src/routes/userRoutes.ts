@@ -1,14 +1,14 @@
 import express from 'express';
 import { customerOnly, protect } from '../middleware/authMiddleware';
 import { 
-  addToCart, getCart, removeFromCart, checkout,
+  addToCart, getCart, removeFromCart,
   addToWishlist, getWishlist, getCurrentUser , getOrderById,getOrders,updateProfile, getAddresses, deleteAddress, addAddress,removeFromWishlist,checkWishlistStatus
 } from '../controllers/userController';
 
 
 const router = express.Router();
 
-router.use(protect); // All routes below require login
+router.use(protect); 
 router.use(customerOnly);
 
 // Cart
@@ -21,7 +21,7 @@ router.post('/wishlist', addToWishlist);
 router.get('/wishlist', getWishlist);
 router.get('/wishlist/check/:productId', checkWishlistStatus);
 router.delete('/wishlist/:productId',removeFromWishlist);
-router.post('/checkout', checkout);
+// router.post('/checkout', checkout);
 
 // Order Routes
 router.get('/orders',  getOrders);

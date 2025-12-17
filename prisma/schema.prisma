@@ -135,21 +135,27 @@ model WishlistItem {
 
 // 2. Update the Order model
 model Order {
-  id            String        @id @default(uuid())
-  userId        String
-  user          User          @relation(fields: [userId], references: [id])
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id])
+
+  total             Decimal
+  status            String   @default("PENDING")
+
+  paymentMethod     PaymentMethod @default(ONLINE)
+  // --- RAZORPAY & LOGIC ---
+  razorpayOrderId   String?  @unique
+  razorpayPaymentId String?
+  metadata          Json?
+  shippingAddress   Json?
+
+  items             OrderItem[]
   
-  total         Decimal
-  status        String        @default("PENDING") // e.g. PENDING, PAID, SHIPPED
-  
-  // --- NEW FIELDS ---
-  paymentMethod PaymentMethod @default(COD) 
-  paymentId     String?       // Stores "pi_12345..." for Online, null for COD
-  // ------------------
-  items         OrderItem[]
-  refunds       Refund[]
- 
-  createdAt     DateTime      @default(now())
+  // ✅ FIX: Add this line back to resolve the relation error
+  refunds           Refund[]
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 model OrderItem {

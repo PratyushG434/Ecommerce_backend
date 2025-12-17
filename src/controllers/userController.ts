@@ -278,61 +278,7 @@ export const checkWishlistStatus = async (req: Request, res: Response) => {
 };
 // --- ORDER APIs ---
 
-export const checkout = async (req: Request, res: Response) => {
-  const userId = req.user?.id;
-  const { items, paymentMethod, paymentId } = req.body;
 
-  if (!userId) return res.status(401).json({ message: 'Unauthorized' });
-
-  try {
-    let total = 0;
-    for (const item of items) {
-      const product = await prisma.product.findUnique({ where: { id: item.productId } });
-      if (!product) return res.status(404).json({ message: `Product ${item.productId} not found` });
-
-      if (product.stock < item.quantity) {
-        return res.status(400).json({ message: `Not enough stock for ${product.name}` });
-      }
-
-      total += Number(product.price) * item.quantity;
-    }
-
-    let orderStatus = 'PENDING';
-    if (paymentMethod === 'ONLINE' && paymentId) {
-      orderStatus = 'PAID';
-    }
-
-    const order = await prisma.order.create({
-      data: {
-        userId,
-        total,
-        status: orderStatus,
-        paymentMethod: paymentMethod,
-        paymentId: paymentId || null,
-        items: {
-          create: items.map((item: any) => ({
-            productId: item.productId,
-            quantity: item.quantity,
-            price: 0,
-            size: item.size,
-            color: item.color
-          }))
-        }
-      }
-    });
-
-    const cart = await prisma.cart.findUnique({ where: { userId } });
-    if (cart) {
-      await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
-    }
-
-    res.json({ success: true, orderId: order.id });
-
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({ message: 'Error placing order' });
-  }
-};
 
 export const getOrderById = async (req: Request, res: Response) => {
   const userId = req.user?.id;
@@ -373,6 +319,7 @@ export const getOrders = async (req: Request, res: Response) => {
         items: {
           select: {
             id: true,
+            price : true, 
             quantity: true,
             product: {
               select: { name: true, images: true }
