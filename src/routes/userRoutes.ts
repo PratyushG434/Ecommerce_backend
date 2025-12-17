@@ -2,7 +2,7 @@ import express from 'express';
 import { customerOnly, protect } from '../middleware/authMiddleware';
 import { 
   addToCart, getCart, removeFromCart, checkout,
-  addToWishlist, getWishlist, getCurrentUser , getOrderById,getOrders,updateProfile, getAddresses, deleteAddress, addAddress
+  addToWishlist, getWishlist, getCurrentUser , getOrderById,getOrders,updateProfile, getAddresses, deleteAddress, addAddress,removeFromWishlist,checkWishlistStatus
 } from '../controllers/userController';
 
 
@@ -14,11 +14,13 @@ router.use(customerOnly);
 // Cart
 router.post('/cart', addToCart);
 router.get('/cart', getCart);
-router.delete('/cart/item/:itemId', removeFromCart);
+router.delete('/cart/:itemId', removeFromCart);
 
 // Wishlist
 router.post('/wishlist', addToWishlist);
 router.get('/wishlist', getWishlist);
+router.get('/wishlist/check/:productId', checkWishlistStatus);
+router.delete('/wishlist/:productId',removeFromWishlist);
 router.post('/checkout', checkout);
 
 // Order Routes

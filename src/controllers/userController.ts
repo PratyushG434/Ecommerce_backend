@@ -78,43 +78,67 @@ export const deleteAddress = async (req: Request, res: Response) => {
   }
 };
 
-// --- CART APIs ---
-
 export const addToCart = async (req: Request, res: Response) => {
-  const userId = req.user?.id;
-  const { productId, size, color, quantity } = req.body;
+  const userId = req.user?.id; // Assumes middleware sets this
+  const { productId, quantity, size, color } = req.body;
 
-  if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+  if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
   try {
+    // 1. Find or Create User's Cart
     let cart = await prisma.cart.findUnique({ where: { userId } });
+
     if (!cart) {
       cart = await prisma.cart.create({ data: { userId } });
     }
 
+    // 2. Check if THIS SPECIFIC VARIANT exists in cart
     const existingItem = await prisma.cartItem.findFirst({
-      where: { cartId: cart.id, productId, size, color }
+      where: {
+        cartId: cart.id,
+        productId: productId,
+        // ✅ CRITICAL: Match Size and Color exactly
+        // If size/color are null/undefined in body, we match null in DB
+        size: size || null,
+        color: color || null
+      }
     });
 
     if (existingItem) {
+      // 3a. UPDATE existing item (Add quantity)
       await prisma.cartItem.update({
         where: { id: existingItem.id },
         data: { quantity: existingItem.quantity + quantity }
       });
     } else {
+      // 3b. CREATE new item
       await prisma.cartItem.create({
-        data: { cartId: cart.id, productId, size, color, quantity }
+        data: {
+          cartId: cart.id,
+          productId,
+          quantity,
+          size: size || null,
+          color: color || null
+        }
       });
     }
 
+    // 4. Return the updated cart with products included
     const updatedCart = await prisma.cart.findUnique({
       where: { id: cart.id },
-      include: { items: { include: { product: true } } }
+      include: {
+        items: {
+          include: { product: true },
+          orderBy: { id: 'asc' } // Keep order consistent
+        }
+      }
     });
 
     res.json(updatedCart);
+
   } catch (error) {
-    res.status(500).json({ message: 'Error adding to cart' });
+    console.error("Add to Cart Error:", error);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -197,6 +221,61 @@ export const getWishlist = async (req: Request, res: Response) => {
   }
 };
 
+// 3. Remove Item
+export const removeFromWishlist = async (req: Request, res: Response) => {
+  const userId = req.user?.id;
+  const { productId } = req.params; // We get ID from URL params
+
+  if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+  try {
+    const wishlist = await prisma.wishlist.findUnique({ where: { userId } });
+    
+    if (wishlist) {
+      // Use deleteMany safely so it doesn't crash if item is already gone
+      await prisma.wishlistItem.deleteMany({
+        where: {
+          wishlistId: wishlist.id,
+          productId: productId
+        }
+      });
+    }
+
+    res.json({ success: true, message: "Removed from wishlist" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Error removing from wishlist' });
+  }
+};
+
+// 4. Check Status (Is this item liked?)
+export const checkWishlistStatus = async (req: Request, res: Response) => {
+  const userId = req.user?.id;
+  const { productId } = req.params;
+
+  if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+  try {
+    const wishlist = await prisma.wishlist.findUnique({ where: { userId } });
+    
+    if (!wishlist) {
+      return res.json({ exists: false });
+    }
+
+    // Check if the specific item exists in the wishlist
+    const item = await prisma.wishlistItem.findFirst({
+      where: {
+        wishlistId: wishlist.id,
+        productId: productId
+      }
+    });
+
+    res.json({ exists: !!item }); // Returns true if found, false if null
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Error checking status' });
+  }
+};
 // --- ORDER APIs ---
 
 export const checkout = async (req: Request, res: Response) => {
