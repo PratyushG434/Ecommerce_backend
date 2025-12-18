@@ -59,7 +59,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
   try {
     const revenue = await prisma.order.aggregate({
       _sum: { total: true },
-      where: { status: 'PAID' }
+      where: { paymentStatus: 'PAID' }
     });
 
     const totalOrders = await prisma.order.count();
@@ -96,7 +96,7 @@ export const getMetrics = async (req: Request, res: Response) => {
   const sales = await prisma.order.findMany({
     where: {
       createdAt: { gte: thirtyDaysAgo },
-      status: 'PAID'
+      paymentStatus: 'PAID'
     },
     select: { createdAt: true, total: true }
   });
@@ -227,7 +227,7 @@ export const getOrders = async (req: Request, res: Response) => {
   const take = 20;
 
   const where: any = {};
-  if (status) where.status = status;
+  if (status) where.orderStatus = status;
 
   const orders = await prisma.order.findMany({
     where,
@@ -297,19 +297,31 @@ export const getOrderById = async (req: Request, res: Response) => {
 
 export const updateOrderStatus = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, type } = req.body; // type should be "ORDER" or "PAYMENT"
 
   try {
+    // ✅ Use 'type' directly to decide which field to update
+    const dataToUpdate = 
+      type === 'PAYMENT' 
+        ? { paymentStatus: status } 
+        : { orderStatus: status };
+
     const order = await prisma.order.update({
       where: { id },
-      data: { status }
+      data: dataToUpdate
     });
 
     if (req.user?.id) {
-      await logActivity(req.user.id, 'UPDATE_ORDER', `Order ${id} set to ${status}`);
+      await logActivity(
+        req.user.id, 
+        'UPDATE_ORDER', 
+        `Order ${id} ${type === 'PAYMENT' ? 'payment status' : 'order status'} set to ${status}`
+      );
     }
+    
     res.json(order);
   } catch (error) {
+    console.error("UPDATE STATUS ERROR:", error);
     res.status(500).json({ message: 'Error updating status' });
   }
 };
@@ -375,6 +387,44 @@ export const getCustomers = async (req: Request, res: Response) => {
   res.json(customers);
 };
 
+export const getCustomerById = async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  try {
+    const customer = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        createdAt: true,
+        notes: true, // Include this since you have an update endpoint for it
+        orders: {
+          orderBy: { createdAt: 'desc' }, // Show newest orders first
+          select: {
+            id: true,
+            total: true,
+            createdAt: true,
+            orderStatus: true,   // ✅ Needed for Badge
+            paymentStatus: true, // ✅ Needed for Badge
+            paymentMethod: true  // Optional: if you want to show method in the table
+          }
+        }
+      }
+    });
+
+    if (!customer) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+
+    res.json(customer);
+  } catch (error) {
+    console.error("GET CUSTOMER ERROR:", error);
+    res.status(500).json({ message: 'Error fetching customer details' });
+  }
+};
+
 export const updateCustomerNotes = async (req: Request, res: Response) => {
   const { id } = req.params;
   const { notes } = req.body;
@@ -388,7 +438,7 @@ export const updateCustomerNotes = async (req: Request, res: Response) => {
 export const exportOrdersCsv = async (req: Request, res: Response) => {
   const orders = await prisma.order.findMany({ include: { user: true } });
 
-  const fields = ['id', 'user.email', 'total', 'status', 'createdAt'];
+  const fields = ['id', 'user.email', 'total', 'orderStatus', 'paymentStatus', 'paymentMethod', 'createdAt'];
   const json2csvParser = new Parser({ fields });
   const csv = json2csvParser.parse(orders);
 

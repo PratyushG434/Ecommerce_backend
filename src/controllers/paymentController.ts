@@ -100,7 +100,8 @@ export const createOrder = async (req: Request, res: Response) => {
         data: {
           userId,
           total: total,
-          status: 'PENDING', // COD orders are pending until delivered/paid
+          orderStatus: 'PROCESSING', // COD orders are confirmed immediately
+          paymentStatus: 'PENDING',  // But not paid yet
           paymentMethod: 'COD',
           metadata: { source: orderSource },
           shippingAddress: address || {}, // Save address snapshot
@@ -136,7 +137,7 @@ export const createOrder = async (req: Request, res: Response) => {
     else {
       // 1. Create Razorpay Order
       const razorpayOrder = await razorpay.orders.create({
-        amount: Math.round(totalAmount * 100), // paise
+        amount: Math.round(total * 100), // paise
         currency: 'INR',
         receipt: `receipt_${Date.now()}`,
       });
@@ -145,8 +146,9 @@ export const createOrder = async (req: Request, res: Response) => {
       const order = await prisma.order.create({
         data: {
           userId,
-          total: totalAmount,
-          status: 'PENDING',
+          total: total,
+          orderStatus: 'PENDING',    // Waiting for payment
+          paymentStatus: 'PENDING',  // Waiting for payment
           paymentMethod: 'ONLINE',
           razorpayOrderId: razorpayOrder.id, // Store for verification
           metadata: { source: orderSource },
@@ -208,7 +210,8 @@ export const verifyPayment = async (req: Request, res: Response) => {
     await prisma.order.update({
       where: { id: order.id },
       data: {
-        status: 'PAID',
+        paymentStatus: 'PAID',       // Money received
+        orderStatus: 'PROCESSING',   // Now we can ship it
         razorpayPaymentId: razorpay_payment_id
       }
       

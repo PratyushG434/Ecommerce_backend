@@ -17,6 +17,22 @@ enum PaymentMethod {
   ONLINE
 }
 
+enum OrderStatus {
+  PENDING     // Created, waiting for action
+  PROCESSING  // Confirmed / Packing
+  SHIPPED     // With courier
+  DELIVERED   // Done
+  CANCELLED
+  RETURNED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
 model User {
   id        String    @id @default(uuid())
   email     String    @unique
@@ -137,23 +153,26 @@ model WishlistItem {
 
 // 2. Update the Order model
 model Order {
-  id                String   @id @default(uuid())
+  id                String        @id @default(uuid())
   userId            String
-  user              User     @relation(fields: [userId], references: [id])
+  user              User          @relation(fields: [userId], references: [id])
 
   total             Decimal
-  status            String   @default("PENDING")
+  
+  // ✅ THE NEW SPLIT FIELDS
+  orderStatus       OrderStatus   @default(PENDING)
+  paymentStatus     PaymentStatus @default(PENDING)
 
   paymentMethod     PaymentMethod @default(ONLINE)
-  // --- RAZORPAY & LOGIC ---
+
+  // Razorpay Data
   razorpayOrderId   String?  @unique
-  razorpayPaymentId String?
-  metadata          Json?
-  shippingAddress   Json?
+  razorpayPaymentId String? // Stores the payment ID (e.g. pay_293839...)
+  
+  metadata          Json?    // Stores cart source etc.
+  shippingAddress   Json?    // Snapshot of address
 
   items             OrderItem[]
-  
-  // ✅ FIX: Add this line back to resolve the relation error
   refunds           Refund[]
 
   createdAt         DateTime @default(now())

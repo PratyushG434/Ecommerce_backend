@@ -315,7 +315,8 @@ export const getOrders = async (req: Request, res: Response) => {
         id: true,
         createdAt: true,
         total: true,
-        status: true,
+        paymentStatus: true,
+        orderStatus: true,
         items: {
           select: {
             id: true,
