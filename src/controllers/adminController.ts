@@ -109,7 +109,9 @@ export const getMetrics = async (req: Request, res: Response) => {
 export const createProduct = async (req: Request, res: Response) => {
   const {
     name, description, price, stock, category, gender,
-    sizes, colors, tags, images, originalPrice
+    sizes, colors, tags, images, originalPrice,
+    // ✅ NEW FIELDS from your updated Frontend
+    features, materials, care, colorNames
   } = req.body;
 
   try {
@@ -122,10 +124,20 @@ export const createProduct = async (req: Request, res: Response) => {
         stock: typeof stock === 'string' ? parseInt(stock) : stock,
         category,
         gender: gender || null,
+
+        // Arrays
         sizes: sizes || [],
-        colors: colors || [],
         tags: tags || [],
         images: images || [],
+        features: features || [], // ✅ Added
+        colorNames: colorNames || [], // ✅ Added (String array for searching)
+
+        // Complex Data (JSON)
+        colors: colors || [],
+
+        // Optional Details
+        materials: materials || null, // ✅ Added
+        care: care || null,           // ✅ Added
       }
     });
 
@@ -144,10 +156,11 @@ export const createProduct = async (req: Request, res: Response) => {
 export const updateProduct = async (req: Request, res: Response) => {
   const { id } = req.params;
 
-  // Destructure ALL fields to allow full updates
   const {
     name, description, price, stock, category, gender,
-    sizes, colors, tags, images, originalPrice
+    sizes, colors, tags, images, originalPrice,
+    // ✅ NEW FIELDS
+    features, materials, care, colorNames
   } = req.body;
 
   try {
@@ -157,14 +170,22 @@ export const updateProduct = async (req: Request, res: Response) => {
         name,
         description,
         price: typeof price === 'string' ? parseFloat(price) : price,
-        originalPrice: originalPrice ? parseFloat(originalPrice) : undefined, // use undefined to skip update if missing
+        originalPrice: originalPrice ? parseFloat(originalPrice) : null, // Changed undefined to null if you want to allow clearing it
         stock: typeof stock === 'string' ? parseInt(stock) : stock,
         category,
         gender,
+
+        // Arrays & JSON
         sizes,
         colors,
+        colorNames, // ✅ Added
         tags,
-        images
+        images,
+        features,   // ✅ Added
+
+        // Details
+        materials,  // ✅ Added
+        care        // ✅ Added
       }
     });
 
@@ -183,12 +204,17 @@ export const updateProduct = async (req: Request, res: Response) => {
 export const deleteProduct = async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
+    // Delete related items first if you don't have Cascade delete set up in Prisma
+    // await prisma.cartItem.deleteMany({ where: { productId: id } });
+
     await prisma.product.delete({ where: { id } });
+
     if (req.user?.id) {
       await logActivity(req.user.id, 'DELETE_PRODUCT', `Deleted product ${id}`);
     }
     res.json({ success: true });
   } catch (error) {
+    console.error("DELETE ERROR:", error);
     res.status(500).json({ message: 'Error deleting product' });
   }
 };

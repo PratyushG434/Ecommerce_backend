@@ -9,7 +9,7 @@ import {
 const router = express.Router();
 
 router.use(protect); 
-router.use(customerOnly);
+// router.use(customerOnly);
 
 // Cart
 router.post('/cart', addToCart);
