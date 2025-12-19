@@ -165,9 +165,9 @@ model Order {
 
   paymentMethod     PaymentMethod @default(ONLINE)
 
-  // Razorpay Data
-  razorpayOrderId   String?  @unique
-  razorpayPaymentId String? // Stores the payment ID (e.g. pay_293839...)
+  // PayU
+  payuTxnId      String?  @unique // The unique transaction ID you send to PayU
+  payuMihpayid   String?          // The ID PayU sends back to you
   
   metadata          Json?    // Stores cart source etc.
   shippingAddress   Json?    // Snapshot of address

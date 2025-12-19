@@ -1,16 +1,16 @@
 import express from 'express';
-import { createOrder, verifyPayment } from '../controllers/paymentController';
+import { createOrder, handlePayUResponse } from '../controllers/paymentController';
 import { protect } from '../middleware/authMiddleware';
 
 const router = express.Router();
-router.use(protect); 
+
 /**
  * 1. CREATE ORDER
  * Route: POST /api/payment/create-order
  * Protected: YES (Need userId to fetch cart or create order)
  */
 // @ts-ignore
-router.post('/create-order',createOrder);
+router.post('/create-order',protect, createOrder);
 
 /**
  * 2. VERIFY PAYMENT
@@ -19,6 +19,6 @@ router.post('/create-order',createOrder);
  * Note: If your frontend doesn't send a token for verify, remove 'protect'.
  */
 // @ts-ignore
-router.post('/verify', verifyPayment);
+router.post('/payu-response', handlePayUResponse);
 
 export default router;

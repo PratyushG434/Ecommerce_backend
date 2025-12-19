@@ -29,6 +29,7 @@ app.use((req, res, next) => {
 
 // Middleware
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(helmet());
 app.use(morgan('dev'));
@@ -43,7 +44,6 @@ app.use('/api/products', productRoutes);
 app.use('/api/admin', dashboardRoutes);
 app.use('/api/user', userRoutes); 
 app.use('/api/admin',adminRoutes);
-app.use('/api/admin', adminRoutes);
 app.use('/api/payment', paymentRoutes);
 
 
