@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { sendOrderConfirmationEmail } from '../utils/emailService';
-import { generatePayUHash, verifyPayUHash } from '../utils/payu'; // Import the helper
+import { generatePayUHash, verifyPayUHash } from '../utils/payu'; 
 
 const prisma = new PrismaClient();
 
@@ -29,8 +29,6 @@ export const createOrder = async (req: Request, res: Response) => {
     let orderSource = 'cart';
 
     // --- STEP 1: CALCULATE ITEMS & TOTAL (Securely) ---
-    // [LOGIC PRESERVED]
-
     // A. SCENARIO: DIRECT BUY
     if (directItems && Array.isArray(directItems) && directItems.length > 0) {
       orderSource = 'direct';
@@ -42,7 +40,7 @@ export const createOrder = async (req: Request, res: Response) => {
           finalItems.push({
             productId: product.id,
             quantity: item.quantity,
-            price: Number(product.price),
+            price: Number(product.price), // Handle potential Decimal/Float types
             size: item.size || "N/A",
             color: item.color || "N/A"
           });
@@ -74,25 +72,31 @@ export const createOrder = async (req: Request, res: Response) => {
     if (totalAmount < 1) return res.status(400).json({ message: "Order amount must be at least ₹1" });
 
     // --- STEP 3: CREATE ORDER BASED ON PAYMENT METHOD ---
-    // [LOGIC PRESERVED: Same Math]
     const shipping = totalAmount > 75 ? 0 : 10;
     const tax = Math.round(totalAmount * 0.18);
-    // const total = totalAmount + shipping + tax;
     const total = totalAmount + shipping + tax;
     
 
     // === OPTION A: CASH ON DELIVERY (COD) ===
-    // [LOGIC PRESERVED: Identical to your code]
     if (paymentMethod === "COD") {
+      // ✅ 1. REDUCE STOCK (COD: Reduce immediately)
+      // Using a loop to update stock for each item securely
+      for (const item of finalItems) {
+        await prisma.product.update({
+          where: { id: item.productId },
+          data: { stock: { decrement: item.quantity } }
+        });
+      }
+
       const order = await prisma.order.create({
         data: {
           userId,
           total: total,
-          orderStatus: 'PROCESSING',
-          paymentStatus: 'PENDING',
-          paymentMethod: 'COD',
+          orderStatus: 'PROCESSING', // Matches Enum
+          paymentStatus: 'PENDING',  // Matches Enum
+          paymentMethod: 'COD',      // Matches Enum
           metadata: { source: orderSource },
-          shippingAddress: address || {},
+          shippingAddress: address || {}, // Matches Json type
           items: {
             create: finalItems.map(item => ({
               productId: item.productId,
@@ -114,7 +118,12 @@ export const createOrder = async (req: Request, res: Response) => {
 
       const user = await prisma.user.findUnique({ where: { id: userId } });
       if (user) {
-        sendOrderConfirmationEmail(user.email, order.id, Number(order.total));
+        // Wrap email in try-catch to prevent crash if email service fails
+        try {
+          await sendOrderConfirmationEmail(user.email, order.id, Number(order.total));
+        } catch (emailErr) {
+          console.error("COD Email failed:", emailErr);
+        }
       }
 
       return res.json({ success: true, orderId: order.id, mode: 'COD' });
@@ -125,13 +134,11 @@ export const createOrder = async (req: Request, res: Response) => {
       // 1. Generate a Unique Transaction ID for PayU
       const txnid = "TXN" + Date.now() + Math.floor(Math.random() * 1000);
 
-      // 2. Fetch User for PayU Params
       const user = await prisma.user.findUnique({ where: { id: userId } });
       const firstName = user?.name?.split(' ')[0] || "Guest";
       const email = user?.email || "guest@example.com";
 
       // 3. Create DB Order (Status: PENDING)
-      // [LOGIC CHANGE: We create DB order *before* payment initiation to store 'payuTxnId']
       const order = await prisma.order.create({
         data: {
           userId,
@@ -139,7 +146,7 @@ export const createOrder = async (req: Request, res: Response) => {
           orderStatus: 'PENDING',
           paymentStatus: 'PENDING',
           paymentMethod: 'ONLINE',
-          payuTxnId: txnid, // ✅ Store PayU Txn ID
+          payuTxnId: txnid, 
           metadata: { source: orderSource },
           shippingAddress: address || {},
           items: {
@@ -167,7 +174,7 @@ export const createOrder = async (req: Request, res: Response) => {
       // 5. Return Form Data to Frontend
       return res.json({
         success: true,
-        mode: 'ONLINE', // Signal frontend this is an online payment
+        mode: 'ONLINE', 
         payuParams: {
           key: PAYU_KEY,
           txnid: txnid,
@@ -175,7 +182,7 @@ export const createOrder = async (req: Request, res: Response) => {
           productinfo: "Raawr Order",
           firstname: firstName,
           email: email,
-          phone: "9999999999", // PayU requires a phone field
+          phone: "9999999999", 
           surl: `${process.env.BACKEND_URL}/api/payment/payu-response`,
           furl: `${process.env.BACKEND_URL}/api/payment/payu-response`,
           hash: hash
@@ -191,11 +198,8 @@ export const createOrder = async (req: Request, res: Response) => {
 
 /**
  * 2. VERIFY PAYMENT (Handle PayU Callback)
- * PayU redirects user here with a POST request.
- * [LOGIC PRESERVED: We still verify, update DB, clear cart, and send email]
  */
 export const handlePayUResponse = async (req: Request, res: Response) => {
-  // PayU sends data in req.body (form-urlencoded)
   const response = req.body; 
 
   try {
@@ -207,9 +211,10 @@ export const handlePayUResponse = async (req: Request, res: Response) => {
     }
 
     // B. Find Order in DB using Transaction ID
+    // We also need to include 'items' now to reduce stock
     const order = await prisma.order.findUnique({
       where: { payuTxnId: response.txnid },
-      include: { user: true }
+      include: { user: true, items: true } 
     });
 
     if (!order) {
@@ -219,17 +224,24 @@ export const handlePayUResponse = async (req: Request, res: Response) => {
     // C. Check PayU Status
     if (response.status === 'success') {
       
+      // ✅ 1. REDUCE STOCK (Online: Reduce ONLY on Success)
+      for (const item of order.items) {
+        await prisma.product.update({
+          where: { id: item.productId },
+          data: { stock: { decrement: item.quantity } }
+        });
+      }
+
       // D. Update Order Status to PAID
       await prisma.order.update({
         where: { id: order.id },
         data: {
           paymentStatus: 'PAID',
           orderStatus: 'PROCESSING',
-          payuMihpayid: response.mihpayid // Store PayU's internal ID
+          payuMihpayid: response.mihpayid 
         }
       });
 
-      // E. Clear Cart Logic [PRESERVED EXACTLY]
       const metadata = order.metadata as any;
       if (metadata?.source === 'cart' && order.userId) {
         await prisma.cart.update({
@@ -239,9 +251,13 @@ export const handlePayUResponse = async (req: Request, res: Response) => {
         console.log(`Cart cleared for user ${order.userId}`);
       }
 
-      // F. Send Email [PRESERVED]
+      // F. Send Email
       if (order.user) {
-        await sendOrderConfirmationEmail(order.user.email, order.id, Number(order.total));
+        try {
+            await sendOrderConfirmationEmail(order.user.email, order.id, Number(order.total));
+        } catch (emailErr) {
+            console.error("Online Payment Email failed but payment success:", emailErr);
+        }
       }
 
       // G. Redirect to Success Page

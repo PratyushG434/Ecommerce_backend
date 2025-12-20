@@ -27,7 +27,7 @@ export const login = async (req: Request, res: Response) => {
 
     // 🔒 2. HARD VERIFICATION CHECK
     if (!user.isVerified) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         message: 'Please verify your email address to log in.',
         needsVerification: true // Optional: Frontend can use this to show a "Resend Email" button
       });
@@ -39,8 +39,8 @@ export const login = async (req: Request, res: Response) => {
 
     res.cookie('jwt', refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: true,
+      sameSite: 'none',
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
 
@@ -113,7 +113,7 @@ export const verifyEmail = async (req: Request, res: Response) => {
 
     await prisma.user.update({
       where: { id: user.id },
-      data: { 
+      data: {
         isVerified: true,
         verificationToken: null // Clear token after use
       }
