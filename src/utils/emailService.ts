@@ -2,16 +2,20 @@
 import nodemailer from 'nodemailer';
 
 const transporter = nodemailer.createTransport({
+  pool: true,            // ✅ KEEPS CONNECTION ALIVE (Faster & More Reliable)
   host: "smtp.gmail.com",
-  port: 587,             // ✅ USE 587 (Standard for Render/AWS)
-  secure: false,         // ✅ MUST be false for port 587 (uses STARTTLS)
-  requireTLS: true,      // ✅ Force TLS for security
-  logger: true,          // ✅ Log interaction details to console (helps debug)
-  debug: true,           // ✅ Show debug output
+  port: 587,
+  secure: false,         // Must be false for port 587
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS, // ⚠️ MUST be a 16-character App Password, NOT your login password
+    pass: process.env.EMAIL_PASS,
   },
+  tls: {
+    ciphers: 'SSLv3',    // Helps with some strict firewalls
+    rejectUnauthorized: false,
+  },
+  maxConnections: 1,     // ⚠️ Limit to 1 connection to avoid Gmail blocking you
+  maxMessages: 100,      // Reuse connection for 100 emails
 });
 
 export const verifyEmailConnection = async () => {

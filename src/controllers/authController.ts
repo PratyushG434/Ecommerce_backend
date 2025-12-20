@@ -83,8 +83,8 @@ export const register = async (req: Request, res: Response) => {
       }
     });
 
-    // 3. Send Email
-    await sendVerificationEmail(newUser.email, verificationToken);
+    sendVerificationEmail(newUser.email, verificationToken)
+      .catch(err => console.error("⚠️ Background Signup Email Failed:", err));
 
     // 4. Return Success Message ONLY (No Tokens)
     res.status(201).json({
