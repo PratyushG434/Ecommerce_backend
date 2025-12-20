@@ -13,7 +13,7 @@ import dashboardRoutes from './routes/dashboardRoutes';
 import userRoutes from './routes/userRoutes';
 import adminRoutes from './routes/adminRoutes';
 import { PrismaClient } from '@prisma/client';
-import { adminOnly, protect } from './middleware/authMiddleware';
+import { verifyEmailConnection } from './utils/emailService';
 const prisma = new PrismaClient();
 // We can add orderRoutes later
 
@@ -64,4 +64,5 @@ app.listen(PORT, () => {
 });
 
 checkDbConnection();
+verifyEmailConnection();
 

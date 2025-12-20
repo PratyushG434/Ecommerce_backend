@@ -118,12 +118,9 @@ export const createOrder = async (req: Request, res: Response) => {
 
       const user = await prisma.user.findUnique({ where: { id: userId } });
       if (user) {
-        // Wrap email in try-catch to prevent crash if email service fails
-        try {
-          await sendOrderConfirmationEmail(user.email, order.id, Number(order.total));
-        } catch (emailErr) {
-          console.error("COD Email failed:", emailErr);
-        }
+   
+        sendOrderConfirmationEmail(user.email, order.id, Number(order.total))
+          .catch(err => console.error("COD Email background error:", err));
       }
 
       return res.json({ success: true, orderId: order.id, mode: 'COD' });
@@ -253,11 +250,8 @@ export const handlePayUResponse = async (req: Request, res: Response) => {
 
       // F. Send Email
       if (order.user) {
-        try {
-            await sendOrderConfirmationEmail(order.user.email, order.id, Number(order.total));
-        } catch (emailErr) {
-            console.error("Online Payment Email failed but payment success:", emailErr);
-        }
+        sendOrderConfirmationEmail(order.user.email, order.id, Number(order.total))
+          .catch(err => console.error("Payment success but email failed in background", err));
       }
 
       // G. Redirect to Success Page

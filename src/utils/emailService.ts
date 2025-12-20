@@ -2,14 +2,26 @@
 import nodemailer from 'nodemailer';
 
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com", // 1. Use explicit host
-  port: 587,            // 2. Use Port 587 (Standard for Cloud/TLS)
-  secure: false,        // 3. Must be false for port 587 (it uses STARTTLS)
+  host: "smtp.gmail.com",
+  port: 587,             // ✅ USE 587 (Standard for Render/AWS)
+  secure: false,         // ✅ MUST be false for port 587 (uses STARTTLS)
+  requireTLS: true,      // ✅ Force TLS for security
+  logger: true,          // ✅ Log interaction details to console (helps debug)
+  debug: true,           // ✅ Show debug output
   auth: {
-    user: process.env.EMAIL_USER, 
-    pass: process.env.EMAIL_PASS, 
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS, // ⚠️ MUST be a 16-character App Password, NOT your login password
   },
 });
+
+export const verifyEmailConnection = async () => {
+  try {
+    await transporter.verify();
+    console.log("✅ Email Server Connected Successfully");
+  } catch (error) {
+    console.error("❌ Email Server Connection Failed:", error);
+  }
+};
 
 export const sendVerificationEmail = async (email: string, token: string) => {
   const url = `${process.env.FRONTEND_URL}/verify?token=${token}`;
