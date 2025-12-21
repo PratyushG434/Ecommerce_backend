@@ -1,57 +1,68 @@
-// src/utils/emailService.ts
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
-const transporter = nodemailer.createTransport({
-  pool: true,            // ✅ KEEPS CONNECTION ALIVE (Faster & More Reliable)
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false,         // Must be false for port 587
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  tls: {
-    ciphers: 'SSLv3',    // Helps with some strict firewalls
-    rejectUnauthorized: false,
-  },
-  maxConnections: 1,     // ⚠️ Limit to 1 connection to avoid Gmail blocking you
-  maxMessages: 100,      // Reuse connection for 100 emails
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+// ⚠️ IMPORTANT: In Resend "Test Mode", use the onboarding email
+// or verify your domain to use a custom one.
+const FROM_EMAIL = 'onboarding@resend.dev'; 
 
 export const verifyEmailConnection = async () => {
-  try {
-    await transporter.verify();
-    console.log("✅ Email Server Connected Successfully");
-  } catch (error) {
-    console.error("❌ Email Server Connection Failed:", error);
+  if (!process.env.RESEND_API_KEY) {
+    console.error("❌ Resend API Key is missing in Environment Variables!");
+  } else {
+    console.log("✅ Resend API Key found. Email service is ready via HTTP (Port 443).");
   }
 };
 
 export const sendVerificationEmail = async (email: string, token: string) => {
   const url = `${process.env.FRONTEND_URL}/verify?token=${token}`;
   
-  await transporter.sendMail({
-    from: '"Raawr Store" <no-reply@raawr.com>',
-    to: email,
-    subject: 'Verify your email - Raawr Store',
-    html: `
-      <h1>Welcome to Raawr!</h1>
-      <p>Please click the link below to verify your email address:</p>
-      <a href="${url}">Verify Email</a>
-    `,
-  });
+  try {
+    // 👇 FIX: Destructure 'data' and 'error' from the response
+    const { data, error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: email, 
+      subject: 'Verify your email - Raawr Store',
+      html: `
+        <h1>Welcome to Raawr!</h1>
+        <p>Please click the link below to verify your email address:</p>
+        <a href="${url}">Verify Email</a>
+      `,
+    });
+
+    if (error) {
+      console.error("❌ Resend API returned error:", error);
+      return;
+    }
+
+    console.log("✅ Verification Email Sent via Resend:", data?.id);
+  } catch (err) {
+    console.error("❌ Resend Verification Unexpected Error:", err);
+  }
 };
 
 export const sendOrderConfirmationEmail = async (email: string, orderId: string, total: number) => {
-  await transporter.sendMail({
-    from: '"Raawr Store" <no-reply@raawr.com>',
-    to: email,
-    subject: `Order Confirmed #${orderId.slice(0, 8)}`,
-    html: `
-      <h1>Thank you for your order!</h1>
-      <p>Your order <b>#${orderId}</b> has been placed successfully.</p>
-      <h2>Total: ₹${total}</h2>
-      <p>We will notify you when it ships.</p>
-    `,
-  });
+  try {
+    // 👇 FIX: Destructure 'data' and 'error' here too
+    const { data, error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: email, 
+      subject: `Order Confirmed #${orderId.slice(0, 8)}`,
+      html: `
+        <h1>Thank you for your order!</h1>
+        <p>Your order <b>#${orderId}</b> has been placed successfully.</p>
+        <h2>Total: ₹${total}</h2>
+        <p>We will notify you when it ships.</p>
+      `,
+    });
+
+    if (error) {
+      console.error("❌ Resend API returned error:", error);
+      return;
+    }
+
+    console.log("✅ Order Email Sent via Resend:", data?.id);
+  } catch (err) {
+    console.error("❌ Resend Order Unexpected Error:", err);
+  }
 };
