@@ -4,7 +4,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 // ⚠️ IMPORTANT: In Resend "Test Mode", use the onboarding email
 // or verify your domain to use a custom one.
-const FROM_EMAIL = 'onboarding@resend.dev'; 
+const FROM_EMAIL = 'Raawr <noreply@raawr.in>'; 
 
 export const verifyEmailConnection = async () => {
   if (!process.env.RESEND_API_KEY) {
