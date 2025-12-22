@@ -139,6 +139,33 @@ export const refresh = (req: Request, res: Response) => {
   });
 };
 
+export const resendVerification = async (req: Request, res: Response) => {
+  const { email } = req.body;
+
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.isVerified) {
+      return res.status(400).json({ message: "Email is already verified" });
+    }
+
+    // Reuse existing token or generate a new one if you prefer
+    // Here we just reuse the existing one to keep it simple
+    if (user.verificationToken) {
+        await sendVerificationEmail(user.email, user.verificationToken);
+    }
+
+    res.json({ message: "Verification email resent successfully" });
+
+  } catch (error) {
+    res.status(500).json({ message: "Failed to resend email" });
+  }
+};
+
 export const getMe = async (req: Request, res: Response) => {
   try {
 
