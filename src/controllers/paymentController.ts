@@ -74,8 +74,7 @@ export const createOrder = async (req: Request, res: Response) => {
     // --- STEP 3: CREATE ORDER BASED ON PAYMENT METHOD ---
     const shipping = totalAmount > 75 ? 0 : 10;
     const tax = Math.round(totalAmount * 0.18);
-    const total = 1;
-    // const total = totalAmount + shipping + tax;
+    const total = totalAmount + shipping + tax;
     
 
     // === OPTION A: CASH ON DELIVERY (COD) ===
